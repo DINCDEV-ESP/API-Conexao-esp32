@@ -53,6 +53,7 @@ async function enviarRemedios(req, res) {
 
         horarios.push(
           date.toLocaleTimeString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
             hour: "2-digit",
             minute: "2-digit",
             hour12: false,
