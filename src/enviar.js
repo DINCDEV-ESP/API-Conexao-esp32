@@ -92,6 +92,6 @@ async function enviarRemedios(req, res) {
   }
 }
 
-router.post("/enviar", enviarRemedios);
+router.post("/", enviarRemedios);
 
 export default router;
