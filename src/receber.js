@@ -20,7 +20,7 @@ export function initReceberListener() {
 
       const snapshot = await db
         .collection("medicines")
-        .where("compartment", "==", String(data.id_slot))
+        .where("compartment", "==", String(Number(data.id_slot) - 1))
         .where("email", "==", data.email)
         .limit(1)
         .get();
