@@ -8,15 +8,13 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 
 // rota
-app.use("/enviar", enviarRoute);
-
-// inicia MQTT listener
-initReceberListener();
-
 app.get("/", (req, res) => {
-  res.send("API rodando...");
+  res.status(200).send("OK");
 });
+
+app.use("/enviar", enviarRoute);
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`Servidor rodando na porta ${port}`);
+  initReceberListener();
 });
