@@ -25,12 +25,21 @@ export function initReceberListener() {
         .limit(1)
         .get();
 
-      if (snapshot.empty) return;
+      if (snapshot.empty) {
+        console.log("Nenhuma medicação encontrada para o slot e email fornecidos");
+        return;
+      };
 
       const medicineDoc = snapshot.docs[0];
       const medicineRef = medicineDoc.ref;
 
+      if(medicineRef) {
+        console.log("Referencia ok: ", medicineRef.id);
+        return;
+      }
+
       await db.collection("dose_logs").add({
+
         confirmado: data.confirmado ?? false,
         status: data.status ?? "desconhecido",
         gaveta: String(Number(data.id_slot) - 1),
