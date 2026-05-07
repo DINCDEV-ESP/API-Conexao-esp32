@@ -20,7 +20,7 @@ export function initReceberListener() {
 
       const snapshot = await db
         .collection("medicines")
-        .where("compartment", "==", String(Number(data.id_slot) - 1))
+        .where("compartment", "==", String(data.id_slot))
         .where("email", "==", data.email)
         .limit(1)
         .get();
@@ -41,7 +41,7 @@ export function initReceberListener() {
 
         confirmado: data.confirmado ?? false,
         status: data.status ?? "desconhecido",
-        gaveta: String(Number(data.id_slot) - 1),
+        gaveta: String(data.id_slot),
         medicine_ref: medicineRef,
         horario_disparo: admin.firestore.Timestamp.now(),
         email: data.email,
