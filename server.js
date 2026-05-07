@@ -1,7 +1,7 @@
 import express from "express";
 import enviarRoute from "./src/enviar.js";
 import { initReceberListener } from "./src/receber.js";
-import { initBateriaListener } from "./src/bateria.js";
+import { initBateriaListener, getBateria } from "./src/bateria.js";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,6 +11,12 @@ app.use(express.json());
 // rota
 app.get("/", (req, res) => {
   res.status(200).send("OK");
+});
+
+app.get("/bateria", (req, res) => {
+  res.json({
+    bateria: getBateria()
+  });
 });
 
 app.use("/enviar", enviarRoute);

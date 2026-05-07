@@ -50,11 +50,8 @@ function initBateriaListener() {
   });
 }
 
-app.get("/bateria", (req, res) => {
-  res.json({
-    bateria: bateriaAtual
-  });
-});
+function getBateria() {
+  return bateriaAtual;
+}
 
-
-export { initBateriaListener };
+export { initBateriaListener, getBateria };
