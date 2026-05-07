@@ -80,11 +80,12 @@ async function enviarRemedios(req, res) {
 
       client.publish("dinc/config/remedios", JSON.stringify(payload));
       enviados++;
+      console.log("Publicado no MQTT:", payload);
 
       await new Promise((r) => setTimeout(r, 300));
     }
 
-    client.publish("dinc/config/remedios/fim", "done");
+    //client.publish("dinc/config/remedios", "done");
 
     return res.json({ success: true, enviados });
   } catch (error) {
