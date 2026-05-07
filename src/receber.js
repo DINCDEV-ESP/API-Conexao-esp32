@@ -35,7 +35,6 @@ export function initReceberListener() {
 
       if(medicineRef) {
         console.log("Referencia ok: ", medicineRef.id);
-        return;
       }
 
       await db.collection("dose_logs").add({
@@ -47,6 +46,8 @@ export function initReceberListener() {
         horario_disparo: admin.firestore.Timestamp.now(),
         email: data.email,
       });
+
+      //
 
       console.log("Log salvo");
     } catch (err) {
