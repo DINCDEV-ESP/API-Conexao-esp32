@@ -33,25 +33,41 @@ export function initReceberListener() {
       const medicineDoc = snapshot.docs[0];
       const medicineRef = medicineDoc.ref;
 
-      if(medicineRef) {
+      let confirmado = data.confirmado ?? false;
+      let status = data.status ?? "desconhecido";
+
+      if (medicineRef) {
         console.log("Referencia ok: ", medicineRef.id);
       }
 
-      await db.collection("dose_logs").add({
+      if (medicineDoc.data().num_comprimidos <= 0) {
+        console.log("Nenhum comprimido restante para a medicação: ", medicineDoc.data().name);
+        confirmado = false;
+        status = "atrasado";
 
-        confirmado: data.confirmado ?? false,
-        status: data.status ?? "desconhecido",
-        gaveta: String(data.id_slot),
-        medicine_ref: medicineRef,
-        horario_disparo: admin.firestore.Timestamp.now(),
-        email: data.email,
-      });
+      }
+      else {
+        await medicineRef.update({
+          num_comprimidos: (medicineRef.num_comprimidos - 1),
+        });
+      }
 
-      //
 
-      console.log("Log salvo");
-    } catch (err) {
-      console.error(err);
-    }
-  });
+        await db.collection("dose_logs").add({
+
+          confirmado: confirmado,
+          status: status,
+          gaveta: String(data.id_slot),
+          medicine_ref: medicineRef,
+          horario_disparo: admin.firestore.Timestamp.now(),
+          email: data.email,
+        });
+
+        //
+
+        console.log("Log salvo");
+      } catch (err) {
+        console.error(err);
+      }
+    });
 }
