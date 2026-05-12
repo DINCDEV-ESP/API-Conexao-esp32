@@ -46,7 +46,7 @@ export function initReceberListener() {
         status = "atrasado";
 
       }
-      else {
+      else if(confirmado === true && status === "tomado" && medicineDoc.data().num_comprimidos > 0) {
         await medicineRef.update({
           num_comprimidos: (medicineRef.num_comprimidos - 1),
         });
