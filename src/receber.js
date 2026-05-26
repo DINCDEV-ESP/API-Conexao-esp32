@@ -114,23 +114,23 @@ async function processMessage(topic, message) {
 
     console.log("Mensagem recebida:", data);
 
-    const mac = topic.split("/")[1];
+    // const mac = topic.split("/")[1];
 
-    /*
-      achar usuário pelo mac
-    */
-    const userSnapshot = await db
-      .collection("users")
-      .where("mac_esp", "==", mac)
-      .limit(1)
-      .get();
+    // /*
+    //   achar usuário pelo mac
+    // */
+    // const userSnapshot = await db
+    //   .collection("users")
+    //   .where("mac_esp", "==", mac)
+    //   .limit(1)
+    //   .get();
 
-    if (userSnapshot.empty) {
-      console.log("Usuário não encontrado");
-      return;
-    }
+    // if (userSnapshot.empty) {
+    //   console.log("Usuário não encontrado");
+    //   return;
+    // }
 
-    const email = userSnapshot.docs[0].data().email;
+    // const email = userSnapshot.docs[0].data().email;
 
     /*
       achar medicamento
@@ -138,7 +138,7 @@ async function processMessage(topic, message) {
     const medicineSnapshot = await db
       .collection("medicines")
       .where("compartment", "==", String(data.id_slot))
-      .where("email", "==", email)
+      .where("email", "==", data.email)
       .limit(1)
       .get();
 
@@ -189,7 +189,7 @@ async function processMessage(topic, message) {
       medicine_ref: medicineRef,
       horario_disparo:
         admin.firestore.Timestamp.now(),
-      email,
+      email: data.email,
     });
 
     console.log("Log salvo");
