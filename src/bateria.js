@@ -1,26 +1,36 @@
 import mqtt from "mqtt";
+import { db } from "./firebase.js";
 
 let bateriaAtual = 0;
 
 
-function initBateriaListener() {
+function initBateriaListener(email) {
   const client = mqtt.connect("mqtt://broker.hivemq.com");
+
+  const userSnapshot = await db
+      .collection("users")
+      .where("email", "==", email)
+      .limit(1)
+      .get();
+
+    const mac_esp = userSnapshot.docs[0].data().mac_esp;
+    mac_esp = mac_esp.replace(/:/g, "").toUpperCase();
 
   client.on("connect", () => {
     console.log("Conectado ao broker MQTT");
 
-    client.subscribe("dinc/paciente/bateria", (err) => {
+    client.subscribe(`${mac_esp}/amie/paciente/bateria`, (err) => {
       if (err) {
         console.log("Erro ao se inscrever:", err);
         return;
       }
 
-      console.log("Inscrito no tópico dinc/paciente/bateria");
+      console.log("Inscrito no tópico amie/${mac_esp}/paciente/bateria");
     });
   });
 
   client.on("message", (topic, message) => {
-    if (topic !== "dinc/paciente/bateria") return;
+    if (topic !== `${mac_esp}/amie/paciente/bateria`) return;
 
     try {
       const data = JSON.parse(message.toString());
