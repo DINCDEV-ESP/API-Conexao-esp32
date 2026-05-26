@@ -37,7 +37,7 @@ function subscribeTopic(mac) {
   
   mac = mac.replace(/:/g, "").toUpperCase();
 
-  const topic = `amie/${mac}/paciente/status`;
+  const topic = `${mac}/amie/paciente/status`;
 
   if (subscribedTopics.has(topic)) {
     return;
