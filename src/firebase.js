@@ -1,18 +1,16 @@
 import admin from "firebase-admin";
-import fs from "fs";
 
 let serviceAccount;
 
-if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-  // 🚂 Railway
+try {
   serviceAccount = JSON.parse(
-    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
+    process.env.FIREBASE_SERVICE_ACCOUNT
   );
-} else {
-  // 💻 Local
-  serviceAccount = JSON.parse(
-    fs.readFileSync("./dinc-c1e06-firebase-adminsdk-fbsvc-16dda2d491.json", "utf-8")
-  );
+
+  console.log("Firebase env carregada");
+} catch (err) {
+  console.error("Erro lendo FIREBASE_SERVICE_ACCOUNT:", err);
+  process.exit(1);
 }
 
 admin.initializeApp({
