@@ -1,57 +1,122 @@
 import mqtt from "mqtt";
 import { db } from "./firebase.js";
 
-let bateriaAtual = 0;
+let client;
 
+// guarda bateria por MAC
+const baterias = {};
 
-function initBateriaListener(email) {
-  const client = mqtt.connect("mqtt://broker.hivemq.com");
+// evita subscribe duplicado
+const subscribedTopics = new Set();
 
-  const userSnapshot = await db
-      .collection("users")
-      .where("email", "==", email)
-      .limit(1)
-      .get();
+/*
+=========================
+ASSINAR TÓPICO
+=========================
+*/
+function subscribeTopic(mac) {
+  const macFormatado = mac.replace(/:/g, "").toUpperCase();
+  const topic = `${macFormatado}/amie/paciente/bateria`;
 
-    const mac_esp = userSnapshot.docs[0].data().mac_esp;
-    mac_esp = mac_esp.replace(/:/g, "").toUpperCase();
+  if (subscribedTopics.has(topic)) {
+    return;
+  }
 
-  client.on("connect", () => {
-    console.log("Conectado ao broker MQTT");
+  client.subscribe(topic, (err) => {
+    if (err) {
+      console.log("Erro ao se inscrever:", err);
+      return;
+    }
 
-    client.subscribe(`${mac_esp}/amie/paciente/bateria`, (err) => {
-      if (err) {
-        console.log("Erro ao se inscrever:", err);
-        return;
-      }
+    subscribedTopics.add(topic);
+    console.log(`🔋 Escutando bateria: ${topic}`);
+  });
+}
 
-      console.log("Inscrito no tópico amie/${mac_esp}/paciente/bateria");
+/*
+=========================
+CARREGAR USUÁRIOS EXISTENTES
+=========================
+*/
+async function subscribeExistingUsers() {
+  try {
+    const snapshot = await db.collection("users").get();
+
+    snapshot.forEach((doc) => {
+      const user = doc.data();
+
+      if (!user.mac_esp) return;
+
+      subscribeTopic(user.mac_esp);
     });
+
+    console.log("Todas baterias carregadas");
+  } catch (err) {
+    console.error("Erro ao carregar users:", err);
+  }
+}
+
+/*
+=========================
+NOVOS USUÁRIOS
+=========================
+*/
+function listenForNewUsers() {
+  db.collection("users").onSnapshot((snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === "added") {
+        const user = change.doc.data();
+
+        if (!user.mac_esp) return;
+
+        console.log("Novo usuário bateria");
+
+        subscribeTopic(user.mac_esp);
+      }
+    });
+  });
+}
+
+/*
+=========================
+INICIAR LISTENER
+=========================
+*/
+function initBateriaListener() {
+  client = mqtt.connect("mqtt://broker.hivemq.com:1883");
+
+  client.on("connect", async () => {
+    console.log("MQTT bateria conectado");
+
+    await subscribeExistingUsers();
+    listenForNewUsers();
   });
 
   client.on("message", (topic, message) => {
-    if (topic !== `${mac_esp}/amie/paciente/bateria`) return;
-
     try {
       const data = JSON.parse(message.toString());
 
-      console.log("Mensagem recebida:");
-      console.log(data);
+      const mac = topic.split("/")[0];
 
-      var tensao = Number(data.voltagem);
-      var porcentagem = Math.round(((tensao - 7) / 5) * 100);
-      porcentagem = Math.max(0, Math.min(100, porcentagem));
+      let tensao = Number(data.voltagem);
 
-      console.log("Bateria: " + porcentagem + "%");
+      let porcentagem =
+        Math.round(((tensao - 7) / 5) * 100);
 
-      console.log("Nível da bateria:", porcentagem + "%");
+      porcentagem =
+        Math.max(0, Math.min(100, porcentagem));
 
-      bateriaAtual = porcentagem;
+      baterias[mac] = porcentagem;
+
+      console.log(
+        `${mac}: bateria ${porcentagem}%`
+      );
+
     } catch (err) {
-      console.log("Erro ao converter JSON:", err.message);
-
-      // caso venha apenas texto simples
-      // console.log("Mensagem bruta:", message.toString());
+      console.log(
+        "Erro ao converter JSON:",
+        err.message
+      );
     }
   });
 
@@ -60,8 +125,19 @@ function initBateriaListener(email) {
   });
 }
 
-function getBateria() {
-  return bateriaAtual;
+/*
+=========================
+RETORNAR BATERIA
+=========================
+*/
+function getBateria(mac) {
+  const macFormatado =
+    mac?.replace(/:/g, "").toUpperCase();
+
+  return baterias[macFormatado] ?? null;
 }
 
-export { initBateriaListener, getBateria };
+export {
+  initBateriaListener,
+  getBateria
+};
