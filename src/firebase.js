@@ -4,12 +4,12 @@ let serviceAccount;
 
 try {
   serviceAccount = JSON.parse(
-    process.env.FIREBASE_SERVICE_ACCOUNT
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
   );
 
   console.log("Firebase env carregada");
 } catch (err) {
-  console.error("Erro lendo FIREBASE_SERVICE_ACCOUNT:", err);
+  console.error("Erro lendo GOOGLE_APPLICATION_CREDENTIALS_JSON:", err);
   process.exit(1);
 }
 
