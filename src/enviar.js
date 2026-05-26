@@ -21,6 +21,15 @@ async function enviarRemedios(req, res) {
   }
 
   try {
+
+    const userSnapshot = await db
+      .collection("users")
+      .where("email", "==", email)
+      .limit(1)
+      .get();
+
+    const mac_esp = userSnapshot.docs[0].data().mac_esp;
+
     const medicinesSnapshot = await db
       .collection("medicines")
       .where("email", "==", email)
@@ -78,14 +87,14 @@ async function enviarRemedios(req, res) {
 
       console.log("Enviando:", payload);
 
-      client.publish("dinc/config/remedios", JSON.stringify(payload));
+      client.publish(`${mac_esp}/amie/config/remedios`, JSON.stringify(payload));
       enviados++;
       console.log("Publicado no MQTT:", payload);
 
       await new Promise((r) => setTimeout(r, 300));
     }
 
-    //client.publish("dinc/config/remedios", "done");
+    //client.publish(`${mac_esp}/amie/config/remedios`, "done");
 
     return res.json({ success: true, enviados });
   } catch (error) {
