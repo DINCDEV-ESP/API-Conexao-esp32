@@ -34,6 +34,9 @@ function connectMQTT() {
   =========================
 */
 function subscribeTopic(mac) {
+  
+  mac = mac.replace(/:/g, "").toUpperCase();
+
   const topic = `amie/${mac}/paciente/status`;
 
   if (subscribedTopics.has(topic)) {

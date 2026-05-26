@@ -29,6 +29,7 @@ async function enviarRemedios(req, res) {
       .get();
 
     const mac_esp = userSnapshot.docs[0].data().mac_esp;
+    mac_esp = mac_esp.replace(/:/g, "").toUpperCase();
 
     const medicinesSnapshot = await db
       .collection("medicines")
