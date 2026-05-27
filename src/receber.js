@@ -2,7 +2,11 @@ import mqtt from "mqtt";
 import { db, admin } from "./firebase.js";
 
 let client;
+
 const subscribedTopics = new Set();
+const processedMessages = new Set();
+
+let usersListenerStarted = false;
 
 /*
   =========================
@@ -10,17 +14,34 @@ const subscribedTopics = new Set();
   =========================
 */
 function connectMQTT() {
-  client = mqtt.connect("mqtt://broker.hivemq.com");
+  client = mqtt.connect("mqtt://broker.hivemq.com", {
+    reconnectPeriod: 5000,
+  });
 
   client.on("connect", async () => {
     console.log("✅ MQTT conectado");
 
-    await subscribeExistingUsers();
-    listenForNewUsers();
+    try {
+      await subscribeExistingUsers();
+
+      /*
+        evita criar múltiplos listeners
+      */
+      if (!usersListenerStarted) {
+        listenForNewUsers();
+        usersListenerStarted = true;
+      }
+    } catch (err) {
+      console.error("Erro ao iniciar listeners:", err);
+    }
+  });
+
+  client.on("reconnect", () => {
+    console.log("🔄 Reconectando MQTT...");
   });
 
   client.on("error", (err) => {
-    console.error("Erro MQTT:", err);
+    console.error("❌ Erro MQTT:", err);
   });
 
   client.on("message", async (topic, message) => {
@@ -34,22 +55,29 @@ function connectMQTT() {
   =========================
 */
 function subscribeTopic(mac) {
-  
-  mac = mac.replace(/:/g, "").toUpperCase();
+  if (!mac) return;
 
-  const topic = `${mac}/amie/paciente/status`;
+  const normalizedMac = mac
+    .replace(/:/g, "")
+    .toUpperCase();
 
+  const topic = `${normalizedMac}/amie/paciente/status`;
+
+  /*
+    evita subscribe duplicado
+  */
   if (subscribedTopics.has(topic)) {
     return;
   }
 
   client.subscribe(topic, (err) => {
     if (err) {
-      console.log(`Erro ao assinar ${topic}`);
+      console.error(`❌ Erro ao assinar ${topic}:`, err);
       return;
     }
 
     subscribedTopics.add(topic);
+
     console.log(`📡 Escutando: ${topic}`);
   });
 }
@@ -61,7 +89,9 @@ function subscribeTopic(mac) {
 */
 async function subscribeExistingUsers() {
   try {
-    const snapshot = await db.collection("users").get();
+    const snapshot = await db
+      .collection("users")
+      .get();
 
     snapshot.forEach((doc) => {
       const user = doc.data();
@@ -71,9 +101,12 @@ async function subscribeExistingUsers() {
       subscribeTopic(user.mac_esp);
     });
 
-    console.log("✅ Todos usuários carregados");
+    console.log("✅ Usuários carregados");
   } catch (err) {
-    console.error("Erro ao carregar usuários:", err);
+    console.error(
+      "❌ Erro ao carregar usuários:",
+      err
+    );
   }
 }
 
@@ -83,24 +116,56 @@ async function subscribeExistingUsers() {
   =========================
 */
 function listenForNewUsers() {
+  console.log(
+    "👂 Listener de novos usuários iniciado"
+  );
+
   db.collection("users").onSnapshot(
     (snapshot) => {
       snapshot.docChanges().forEach((change) => {
-        if (change.type === "added") {
-          const user = change.doc.data();
+        /*
+          apenas novos docs
+        */
+        if (change.type !== "added") return;
 
-          if (!user.mac_esp) return;
+        const user = change.doc.data();
 
-          console.log("Novo usuário detectado");
+        if (!user.mac_esp) return;
 
-          subscribeTopic(user.mac_esp);
-        }
+        console.log("🆕 Novo usuário detectado");
+
+        subscribeTopic(user.mac_esp);
       });
     },
     (err) => {
-      console.error("Erro listener users:", err);
+      console.error(
+        "❌ Erro listener users:",
+        err
+      );
     }
   );
+}
+
+/*
+  =========================
+  EVITAR MENSAGEM DUPLICADA
+  =========================
+*/
+function isDuplicateMessage(rawMessage) {
+  if (processedMessages.has(rawMessage)) {
+    return true;
+  }
+
+  processedMessages.add(rawMessage);
+
+  /*
+    remove após 5 segundos
+  */
+  setTimeout(() => {
+    processedMessages.delete(rawMessage);
+  }, 5000);
+
+  return false;
 }
 
 /*
@@ -110,91 +175,128 @@ function listenForNewUsers() {
 */
 async function processMessage(topic, message) {
   try {
-    const data = JSON.parse(message.toString());
-
-    console.log("Mensagem recebida:", data);
-
-    // const mac = topic.split("/")[1];
-
-    // /*
-    //   achar usuário pelo mac
-    // */
-    // const userSnapshot = await db
-    //   .collection("users")
-    //   .where("mac_esp", "==", mac)
-    //   .limit(1)
-    //   .get();
-
-    // if (userSnapshot.empty) {
-    //   console.log("Usuário não encontrado");
-    //   return;
-    // }
-
-    // const email = userSnapshot.docs[0].data().email;
+    const rawMessage = message.toString();
 
     /*
-      achar medicamento
+      evita mensagens duplicadas
+    */
+    if (isDuplicateMessage(rawMessage)) {
+      console.log("⚠️ Mensagem duplicada ignorada");
+      return;
+    }
+
+    // console.log("📨 Topic:", topic);
+    console.log("📨 Raw:", rawMessage);
+
+    const data = JSON.parse(rawMessage);
+
+    console.log("📦 Dados:", data);
+
+    /*
+      validações básicas
+    */
+    if (!data.email || !data.id_slot) {
+      console.log("❌ Dados inválidos");
+      return;
+    }
+
+    /*
+      buscar medicamento
     */
     const medicineSnapshot = await db
       .collection("medicines")
-      .where("compartment", "==", String(data.id_slot))
+      .where(
+        "compartment",
+        "==",
+        String(data.id_slot)
+      )
       .where("email", "==", data.email)
       .limit(1)
       .get();
 
     if (medicineSnapshot.empty) {
-      console.log("Medicamento não encontrado");
+      console.log("❌ Medicamento não encontrado");
       return;
     }
 
     const medicineDoc = medicineSnapshot.docs[0];
     const medicineRef = medicineDoc.ref;
-    const medicineData = medicineDoc.data();
-
-    let confirmado = data.confirmado ?? false;
-    let status = data.status ?? "desconhecido";
 
     /*
-      verifica comprimidos
+      transação evita race condition
     */
-    if (medicineData.num_comprimidos <= 0) {
-      confirmado = false;
-      status = "atrasado";
+    await db.runTransaction(async (transaction) => {
+      const medicineTransaction =
+        await transaction.get(medicineRef);
 
-      console.log("Sem comprimidos");
-    }
+      if (!medicineTransaction.exists) {
+        throw new Error(
+          "Medicamento não existe"
+        );
+      }
 
-    /*
-      decrementa
-    */
-    else if (
-      confirmado === true &&
-      status === "tomado"
-    ) {
-      await medicineRef.update({
-        num_comprimidos:
-          medicineData.num_comprimidos - 1,
+      const medicineData =
+        medicineTransaction.data();
+
+      let confirmado =
+        data.confirmado ?? false;
+
+      let status =
+        data.status ?? "desconhecido";
+
+      /*
+        sem comprimidos
+      */
+      if (
+        medicineData.num_comprimidos <= 0
+      ) {
+        confirmado = false;
+        status = "atrasado";
+
+        console.log("⚠️ Sem comprimidos");
+      }
+
+      /*
+        decrementa comprimido
+      */
+      else if (
+        confirmado === true &&
+        status === "tomado"
+      ) {
+        transaction.update(medicineRef, {
+          num_comprimidos:
+            medicineData.num_comprimidos - 1,
+        });
+
+        console.log(
+          "💊 Comprimido decrementado"
+        );
+      }
+
+      /*
+        salva log
+      */
+      const logRef = db
+        .collection("dose_logs")
+        .doc();
+
+      transaction.set(logRef, {
+        confirmado,
+        status,
+        gaveta: String(data.id_slot),
+        medicine_ref: medicineRef,
+        horario_disparo:
+          admin.firestore.Timestamp.now(),
+        email: data.email,
       });
 
-      console.log("Comprimido decrementado");
-    }
-
-    /*
-      salva log
-    */
-    await db.collection("dose_logs").add({
-      confirmado,
-      status,
-      gaveta: String(data.id_slot),
-      medicine_ref: medicineRef,
-      horario_disparo:
-        admin.firestore.Timestamp.now(),
-      email: data.email,
+      console.log("📝 Log salvo");
     });
-
-    console.log("Log salvo");
   } catch (err) {
-    console.error("Erro processando:", err);
+    console.error(
+      "❌ Erro processando mensagem:",
+      err
+    );
   }
 }
 
