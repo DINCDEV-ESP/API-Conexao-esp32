@@ -57,11 +57,7 @@ function connectMQTT() {
 function subscribeTopic(mac) {
   if (!mac) return;
 
-  const normalizedMac = mac
-    .replace(/:/g, "")
-    .toUpperCase();
-
-  const topic = `${normalizedMac}/amie/paciente/status`;
+  const topic = `${mac}/amie/paciente/status`;
 
   /*
     evita subscribe duplicado
@@ -79,6 +75,7 @@ function subscribeTopic(mac) {
     subscribedTopics.add(topic);
 
     console.log(`📡 Escutando: ${topic}`);
+
   });
 }
 
@@ -117,22 +114,42 @@ async function subscribeExistingUsers() {
 */
 function listenForNewUsers() {
   console.log(
-    "👂 Listener de novos usuários iniciado"
+    "👂 Listener de usuários iniciado"
   );
 
   db.collection("users").onSnapshot(
     (snapshot) => {
       snapshot.docChanges().forEach((change) => {
-        /*
-          apenas novos docs
-        */
-        if (change.type !== "added") return;
+        if (
+          change.type !== "added" &&
+          change.type !== "modified"
+        ) {
+          return;
+        }
 
         const user = change.doc.data();
 
         if (!user.mac_esp) return;
 
-        console.log("🆕 Novo usuário detectado");
+        /*
+          verifica se mac mudou
+        */
+        if (change.type === "modified") {
+          const before =
+            change.oldIndex !== -1
+              ? snapshot.docs[
+                  change.oldIndex
+                ]?.data()?.mac_esp
+              : null;
+
+          if (before === user.mac_esp) {
+            return;
+          }
+        }
+
+        console.log(
+          `📡 Assinando tópico de ${user.mac_esp}`
+        );
 
         subscribeTopic(user.mac_esp);
       });
