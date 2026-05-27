@@ -19,18 +19,21 @@ app.get("/", (req, res) => {
   rota bateria
 */
 app.get("/bateria", (req, res) => {
-  const mac = req.query.mac;
+  const mac = req.query.mac
+    ?.trim()
+    .toUpperCase();
+
+  console.log("🔎 MAC recebido:", mac);
 
   const bateria = getBateria(mac);
 
-  if (bateria === null) {
-    return res.status(404).json({
-      error: "Bateria não encontrada",
-    });
-  }
+  console.log(
+    "🔋 Bateria encontrada:",
+    bateria
+  );
 
   res.json({
-    bateria,
+    bateria: bateria ?? null,
   });
 });
 

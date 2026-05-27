@@ -329,7 +329,13 @@ function getBateria(mac) {
     return null;
   }
 
-  return baterias[mac] ?? null;
+  const macFormatado = mac
+    .trim()
+    .toUpperCase();
+
+  return (
+    baterias[macFormatado] ?? null
+  );
 }
 
 export {
