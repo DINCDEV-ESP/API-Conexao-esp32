@@ -282,7 +282,7 @@ async function processMessage(topic, message) {
       ) {
         transaction.update(medicineRef, {
           num_comprimidos:
-            medicineData.num_comprimidos - 1,
+            medicineData.num_comprimidos - medicineData.dosage,
         });
 
         console.log(
