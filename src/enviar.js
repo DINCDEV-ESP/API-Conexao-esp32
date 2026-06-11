@@ -77,12 +77,21 @@ async function enviarRemedios(req, res) {
         return h1 * 60 + m1 - (h2 * 60 + m2);
       });
 
+      const data = med.finish_date.toDate();
+
+      const dataFinal = `${data.getFullYear()}-${String(
+        data.getMonth() + 1
+      ).padStart(2, "0")}-${String(
+        data.getDate()
+      ).padStart(2, "0")}`;
+
       const payload = {
         id: parseInt(med.compartment, 10),
         nome: med.name,
         horarios_lista: horarios,
         dose: med.dosage,
         dias: [true, true, true, true, true, true, true],
+        data_fim: dataFinal,
         email,
       };
 
