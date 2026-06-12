@@ -6,152 +6,254 @@ let mqttClient;
 const pendingRequests = new Map();
 
 export function startPairingListener() {
-    mqttClient = mqtt.connect(
-        "mqtts://broker.hivemq.com:8883"
+  console.log(
+    "🚀 Iniciando listener de pareamento..."
+  );
+
+  mqttClient = mqtt.connect(
+    "mqtts://broker.hivemq.com:8883",
+    {
+      reconnectPeriod: 5000,
+      connectTimeout: 5000,
+      clean: true,
+      clientId:
+        "amie-pairing-" +
+        Math.random()
+          .toString(16)
+          .slice(2),
+    }
+  );
+
+  mqttClient.on("connect", () => {
+    console.log(
+      "✅ MQTT pareamento conectado"
     );
 
-    mqttClient.on("connect", () => {
-        console.log(
-            "✅ MQTT pareamento conectado"
-        );
+    listenFirestore();
+  });
 
-        listenFirestore();
-    });
+  mqttClient.on("reconnect", () => {
+    console.log(
+      "🔄 Reconectando MQTT pareamento..."
+    );
+  });
 
-    mqttClient.on("error", (err) => {
-        console.error(
-            "❌ Erro MQTT pareamento:",
-            err
-        );
-    });
+  mqttClient.on("error", (err) => {
+    console.error(
+      "❌ Erro MQTT pareamento:",
+      err
+    );
+  });
 }
 
+/*
+=========================
+LISTENER FIRESTORE
+=========================
+*/
 function listenFirestore() {
-    db.collection("pairing_requests")
-        .where("pendencia", "==", true)
-        .onSnapshot(
-            (snapshot) => {
-                snapshot
-                    .docChanges()
-                    .forEach((change) => {
-                        if (
-                            change.type !== "added"
-                        ) {
-                            return;
-                        }
+  console.log(
+    "👂 Escutando coleção device_pairing..."
+  );
 
-                        processRequest(
-                            change.doc
-                        );
-                    });
-            },
-            (err) => {
-                console.error(
-                    "❌ Erro listener pareamento:",
-                    err
-                );
-            }
-        );
+  db.collection("device_pairing").onSnapshot(
+    (snapshot) => {
+      snapshot.docChanges().forEach(
+        (change) => {
+          console.log(
+            `📄 Alteração detectada: ${change.type}`
+          );
+
+          if (
+            change.type !== "added" &&
+            change.type !== "modified"
+          ) {
+            return;
+          }
+
+          processRequest(
+            change.doc
+          );
+        }
+      );
+    },
+    (err) => {
+      console.error(
+        "❌ Erro listener Firestore:",
+        err
+      );
+    }
+  );
 }
 
+/*
+=========================
+PROCESSAR SOLICITAÇÃO
+=========================
+*/
 async function processRequest(
-    doc
+  doc
 ) {
-    try {
-        const data = doc.data();
+  try {
+    const data = doc.data();
 
-        const mac =
-            data.mac_digitado;
+    console.log(
+      "📥 Documento recebido:",
+      doc.id,
+      data
+    );
 
-        if (!mac) {
-            return;
-        }
+    const mac =
+      data.mac_esp?.trim()
+        .toUpperCase();
 
-        /*
-          evita processar duas vezes
-        */
-        if (
-            pendingRequests.has(
-                doc.id
-            )
-        ) {
-            return;
+    const email =
+      data.email?.trim();
+
+    if (!mac) {
+      console.log(
+        `⚠️ Documento ${doc.id} sem MAC`
+      );
+
+      return;
+    }
+
+    if (!email) {
+      console.log(
+        `⚠️ Documento ${doc.id} sem email`
+      );
+
+      return;
+    }
+
+    /*
+      evita reprocessar
+    */
+    if (
+      pendingRequests.has(
+        doc.id
+      )
+    ) {
+      console.log(
+        `⚠️ Documento ${doc.id} já está sendo processado`
+      );
+
+      return;
+    }
+
+    const horario =
+      data.time_req
+        ?.toDate()
+        ?.toLocaleTimeString(
+          "pt-BR",
+          {
+            hour12: false,
+          }
+        );
+
+    if (!horario) {
+      console.log(
+        `⚠️ Documento ${doc.id} sem horário`
+      );
+
+      return;
+    }
+
+    const payload = {
+      mac,
+      email,
+      horario,
+    };
+
+    console.log(
+      "📡 Publicando MQTT:"
+    );
+    console.log(
+      "📍 Tópico:",
+      `amie/sistema/requisicao_pareamento/${mac}`
+    );
+    console.log(
+      "📦 Payload:",
+      payload
+    );
+
+    mqttClient.publish(
+      `amie/sistema/requisicao_pareamento/${mac}`,
+      JSON.stringify(
+        payload
+      ),
+      (err) => {
+        if (err) {
+          console.error(
+            "❌ Erro publish MQTT:",
+            err
+          );
+
+          return;
         }
 
         console.log(
-            `📡 Enviando pareamento para ${mac}`
+          `✅ Solicitação enviada para ${mac}`
         );
+      }
+    );
 
-        const dataHora = data.time_req.toDate();
+    pendingRequests.set(
+      doc.id,
+      true
+    );
 
-        const horario = dataHora.toLocaleTimeString(
-            "pt-BR",
-            {
-                hour12: false,
-            }
-        );
+    console.log(
+      `⏳ Timeout iniciado (${doc.id})`
+    );
 
-        const payload = {
-            mac: data.mac_esp,
-            email: data.email,
-            horario,
-        };
+    /*
+      expira após 10 segundos
+    */
+    setTimeout(
+      async () => {
+        try {
+          const currentDoc =
+            await doc.ref.get();
 
-        mqttClient.publish(
-            `amie/sistema/requisicao_pareamento/${mac}`,
-            JSON.stringify(
-                payload
-            )
-        );
+          if (
+            currentDoc.exists
+          ) {
+            console.log(
+              `⏰ Timeout atingido para ${mac}`
+            );
 
-        pendingRequests.set(
-            doc.id,
-            true
-        );
+            await doc.ref.delete();
 
-        /*
-          expira em 10s
-        */
-        setTimeout(
-            async () => {
-                try {
-                    const currentDoc =
-                        await doc.ref.get();
-
-                    if (
-                        currentDoc.exists
-                    ) {
-                        const currentData =
-                            currentDoc.data();
-
-                        if (
-                            currentData.pendencia ===
-                            true
-                        ) {
-                            console.log(
-                                `⏰ Pareamento expirado ${mac}`
-                            );
-
-                            await doc.ref.delete();
-                        }
-                    }
-
-                    pendingRequests.delete(
-                        doc.id
-                    );
-                } catch (err) {
-                    console.error(
-                        "Erro timeout pareamento:",
-                        err
-                    );
-                }
-            },
-            10000
-        );
-    } catch (err) {
-        console.error(
-            "Erro processando pareamento:",
+            console.log(
+              `🗑️ Documento removido: ${doc.id}`
+            );
+          } else {
+            console.log(
+              `✅ Documento ${doc.id} já foi removido`
+            );
+          }
+        } catch (err) {
+          console.error(
+            "❌ Erro timeout:",
             err
-        );
-    }
+          );
+        } finally {
+          pendingRequests.delete(
+            doc.id
+          );
+
+          console.log(
+            `🧹 Limpeza concluída para ${doc.id}`
+          );
+        }
+      },
+      10000
+    );
+  } catch (err) {
+    console.error(
+      "❌ Erro processando solicitação:",
+      err
+    );
+  }
 }
