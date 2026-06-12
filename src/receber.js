@@ -220,6 +220,11 @@ async function processMessage(topic, message) {
     /*
       validações básicas
     */
+
+    data.id_slot = Number(data.id_slot) + 1;
+
+    console.log("📦 Dados:", data);
+
     if (!data.email || !data.id_slot) {
       console.log("❌ Dados inválidos");
       return;
