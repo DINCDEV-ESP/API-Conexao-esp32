@@ -4,6 +4,7 @@ import { db, admin } from "./firebase.js";
 let client;
 
 const subscribedTopics = new Set();
+const knownMacs = new Set();
 const processedMessages = new Set();
 
 let usersListenerStarted = false;
