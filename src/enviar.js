@@ -86,7 +86,7 @@ async function enviarRemedios(req, res) {
       ).padStart(2, "0")}`;
 
       const payload = {
-        id: parseInt(med.compartment, 10),
+        id: parseInt(med.compartment, 10) - 1,
         nome: med.name,
         horarios_lista: horarios,
         dose: med.dosage,
