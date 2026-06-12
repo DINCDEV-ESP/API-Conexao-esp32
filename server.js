@@ -1,7 +1,13 @@
 import express from "express";
+
 import enviarRoute from "./src/enviar.js";
+import { startPairingListener } from "./src/enviarPareamento.js";
+
 import { startMQTTListener } from "./src/receber.js";
-import { initBateriaListener, getBateria } from "./src/bateria.js";
+import {
+  initBateriaListener,
+  getBateria,
+} from "./src/bateria.js";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -9,48 +15,115 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 
 /*
-  rota health check
+=========================
+HEALTH CHECK
+=========================
 */
 app.get("/", (req, res) => {
   res.status(200).send("OK");
 });
 
 /*
-  rota bateria
+=========================
+BATERIA
+=========================
 */
 app.get("/bateria", (req, res) => {
-  const mac = req.query.mac
-    ?.trim()
-    .toUpperCase();
+  try {
+    const mac = req.query.mac
+      ?.trim()
+      .toUpperCase();
 
-  console.log("🔎 MAC recebido:", mac);
+    if (!mac) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Parâmetro mac é obrigatório",
+      });
+    }
 
-  const bateria = getBateria(mac);
+    const bateria =
+      getBateria(mac);
 
-  console.log(
-    "🔋 Bateria encontrada:",
-    bateria
-  );
+    return res.json({
+      success: true,
+      mac,
+      bateria:
+        bateria ?? null,
+    });
+  } catch (err) {
+    console.error(
+      "Erro rota bateria:",
+      err
+    );
 
-  res.json({
-    bateria: bateria ?? null,
-  });
+    return res.status(500).json({
+      success: false,
+      message:
+        "Erro interno",
+    });
+  }
 });
 
 /*
-  rotas envio
+=========================
+ENVIO MEDICAMENTOS
+=========================
 */
-app.use("/enviar", enviarRoute);
+app.use(
+  "/enviar",
+  enviarRoute
+);
 
 /*
-  subir servidor
+=========================
+PAREAMENTO ESP
+=========================
 */
-app.listen(port, "0.0.0.0", async () => {
-  console.log(`Servidor rodando na porta ${port}`);
+app.use(
+  "/pareamento",
+  pareamentoRoute
+);
 
-  // listener principal MQTT
-  startMQTTListener();
+/*
+=========================
+INICIAR LISTENERS
+=========================
+*/
+let listenersStarted = false;
 
-  // listener bateria
-  initBateriaListener();
-});
+/*
+=========================
+SUBIR SERVIDOR
+=========================
+*/
+app.listen(
+  port,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `🚀 Servidor rodando na porta ${port}`
+    );
+
+    /*
+      Railway pode reiniciar containers.
+      Evita iniciar listeners duas vezes.
+    */
+    if (
+      !listenersStarted
+    ) {
+      listenersStarted =
+        true;
+
+      startMQTTListener();
+
+      initBateriaListener();
+
+      startPairingListener();
+
+      console.log(
+        "✅ Listeners iniciados"
+      );
+    }
+  }
+);
