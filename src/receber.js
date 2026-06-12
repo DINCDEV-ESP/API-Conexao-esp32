@@ -86,19 +86,31 @@ function subscribeTopic(mac) {
 */
 async function subscribeExistingUsers() {
   try {
-    const snapshot = await db
-      .collection("users")
-      .get();
+    const snapshot =
+      await db.collection("users").get();
 
     snapshot.forEach((doc) => {
+
       const user = doc.data();
 
-      if (!user.mac_esp) return;
+      const mac =
+        user.mac_esp
+          ?.trim()
+          .toUpperCase();
 
-      subscribeTopic(user.mac_esp);
+      if (!mac) {
+        return;
+      }
+
+      knownMacs.add(mac);
+
+      subscribeTopic(mac);
     });
 
-    console.log("✅ Usuários carregados");
+    console.log(
+      "✅ Usuários carregados"
+    );
+
   } catch (err) {
     console.error(
       "❌ Erro ao carregar usuários:",
@@ -119,39 +131,34 @@ function listenForNewUsers() {
 
   db.collection("users").onSnapshot(
     (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (
-          change.type !== "added" &&
-          change.type !== "modified"
-        ) {
+
+      snapshot.forEach((doc) => {
+
+        const user = doc.data();
+
+        const mac =
+          user.mac_esp
+            ?.trim()
+            .toUpperCase();
+
+        if (!mac) {
           return;
         }
 
-        const user = change.doc.data();
-
-        if (!user.mac_esp) return;
-
         /*
-          verifica se mac mudou
+          já estamos escutando esse MAC
         */
-        if (change.type === "modified") {
-          const before =
-            change.oldIndex !== -1
-              ? snapshot.docs[
-                  change.oldIndex
-                ]?.data()?.mac_esp
-              : null;
-
-          if (before === user.mac_esp) {
-            return;
-          }
+        if (knownMacs.has(mac)) {
+          return;
         }
 
+        knownMacs.add(mac);
+
         console.log(
-          `📡 Assinando tópico de ${user.mac_esp}`
+          `📡 Novo MAC detectado: ${mac}`
         );
 
-        subscribeTopic(user.mac_esp);
+        subscribeTopic(mac);
       });
     },
     (err) => {
