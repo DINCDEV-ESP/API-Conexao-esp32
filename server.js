@@ -121,6 +121,8 @@ app.listen(
 
       initBateriaListener();
 
+      processPairingResponse();
+
       startPairingListener();
 
       console.log(
