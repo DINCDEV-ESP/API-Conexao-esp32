@@ -117,7 +117,7 @@ async function processPairingResponse(
     const pairingSnapshot =
       await db
         .collection(
-          "pairing_requests"
+          "device_pairing"
         )
         .where(
           "email",
