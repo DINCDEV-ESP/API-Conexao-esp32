@@ -1,28 +1,86 @@
-/*
-=========================
-INSCREVER TÓPICO
-=========================
-*/
-mqttClient.subscribe(
-  "amie/sistema/resposta_pareamento/+"
-);
+import mqtt from "mqtt";
+import { db } from "./firebase.js";
+
+let mqttClient;
 
 /*
 =========================
-RECEBER RESPOSTAS
+INICIAR LISTENER
 =========================
 */
-mqttClient.on("message", async (topic, message) => {
-  if (
-    !topic.startsWith(
-      "amie/sistema/resposta_pareamento/"
-    )
-  ) {
-    return;
-  }
+export function startPairingResponseListener() {
+  mqttClient = mqtt.connect(
+    "mqtts://broker.hivemq.com:8883",
+    {
+      reconnectPeriod: 5000,
+      connectTimeout: 4000,
+      clean: true,
+      clientId:
+        "amie-pareamento-" +
+        Math.random()
+          .toString(16)
+          .slice(2),
+    }
+  );
 
-  await processPairingResponse(message);
-});
+  mqttClient.on("connect", () => {
+    console.log(
+      "✅ MQTT resposta pareamento conectado"
+    );
+
+    mqttClient.subscribe(
+      "amie/sistema/resposta_pareamento/+",
+      (err) => {
+        if (err) {
+          console.error(
+            "❌ Erro subscribe pareamento:",
+            err
+          );
+
+          return;
+        }
+
+        console.log(
+          "📡 Escutando respostas de pareamento"
+        );
+      }
+    );
+  });
+
+  mqttClient.on(
+    "message",
+    async (topic, message) => {
+      if (
+        !topic.startsWith(
+          "amie/sistema/resposta_pareamento/"
+        )
+      ) {
+        return;
+      }
+
+      await processPairingResponse(
+        topic,
+        message
+      );
+    }
+  );
+
+  mqttClient.on(
+    "reconnect",
+    () => {
+      console.log(
+        "🔄 Reconectando MQTT pareamento..."
+      );
+    }
+  );
+
+  mqttClient.on("error", (err) => {
+    console.error(
+      "❌ Erro MQTT pareamento:",
+      err
+    );
+  });
+}
 
 /*
 =========================
@@ -30,6 +88,7 @@ PROCESSAR RESPOSTA
 =========================
 */
 async function processPairingResponse(
+  topic,
   message
 ) {
   try {
@@ -42,12 +101,13 @@ async function processPairingResponse(
       data
     );
 
-    /*
-      precisa estar confirmado
-    */
     if (
       data.confirmado !== true
     ) {
+      console.log(
+        "⚠️ Pareamento não confirmado"
+      );
+
       return;
     }
 
@@ -94,11 +154,10 @@ async function processPairingResponse(
       pairingDoc.data();
 
     /*
-      horário requisição
+      horário da requisição
     */
     const horarioRequisicao =
-      pairingData.horario_requisicao
-        .toDate();
+      pairingData.horario_requisicao.toDate();
 
     /*
       horário clique
@@ -117,12 +176,11 @@ async function processPairingResponse(
       ) / 1000;
 
     console.log(
-      "⏱ Diferença:",
-      diferencaSegundos
+      `⏱ Diferença: ${diferencaSegundos}s`
     );
 
     /*
-      precisa estar entre 0 e 10 segundos
+      máximo 10 segundos
     */
     if (
       diferencaSegundos < 0 ||

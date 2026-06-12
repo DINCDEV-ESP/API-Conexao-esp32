@@ -1,18 +1,26 @@
 import express from "express";
 
 import enviarRoute from "./src/enviar.js";
-import { startPairingListener } from "./src/enviarPareamento.js";
-import { processPairingResponse } from "./src/receberPareamento.js";
 
+import { startMQTTListener }
+  from "./src/receber.js";
 
-import { startMQTTListener } from "./src/receber.js";
 import {
   initBateriaListener,
   getBateria,
 } from "./src/bateria.js";
 
+import {
+  startPairingListener,
+} from "./src/enviarPareamento.js";
+
+import {
+  startPairingResponseListener,
+} from "./src/receberPareamento.js";
+
 const app = express();
-const port = process.env.PORT || 3000;
+const port =
+  process.env.PORT || 3000;
 
 app.use(express.json());
 
@@ -79,16 +87,6 @@ app.use(
 
 /*
 =========================
-PAREAMENTO ESP
-=========================
-*/
-app.use(
-  "/pareamento",
-  pareamentoRoute
-);
-
-/*
-=========================
 INICIAR LISTENERS
 =========================
 */
@@ -107,10 +105,6 @@ app.listen(
       `🚀 Servidor rodando na porta ${port}`
     );
 
-    /*
-      Railway pode reiniciar containers.
-      Evita iniciar listeners duas vezes.
-    */
     if (
       !listenersStarted
     ) {
@@ -121,12 +115,12 @@ app.listen(
 
       initBateriaListener();
 
-      processPairingResponse();
-
       startPairingListener();
 
+      startPairingResponseListener();
+
       console.log(
-        "✅ Listeners iniciados"
+        "✅ Todos os listeners iniciados"
       );
     }
   }
