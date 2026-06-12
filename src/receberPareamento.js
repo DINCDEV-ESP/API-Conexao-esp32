@@ -148,11 +148,16 @@ async function processPairingResponse(
     const pairingData =
       pairingDoc.data();
 
+    console.log(
+      "📄 Dados encontrados no Firestore:",
+      pairingData
+    );
+
     /*
       horário da requisição
     */
     const horarioRequisicao =
-      pairingData.horario_requisicao.toDate();
+      pairingData.time_req.toDate();
 
     /*
       horário clique
