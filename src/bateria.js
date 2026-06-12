@@ -32,13 +32,25 @@ ASSINAR TÓPICO
 function subscribeTopic(mac) {
   if (!mac) return;
 
+  const macFormatado = mac
+    .trim()
+    .toUpperCase();
+
   const topic =
-    `${mac}/amie/paciente/bateria`;
+    `${macFormatado}/amie/paciente/bateria`;
+
+  console.log(
+    `📡 Tentando assinar ${topic}`
+  );
 
   /*
     evita subscribe duplicado
   */
   if (subscribedTopics.has(topic)) {
+    console.log(
+      `⚠️ Já inscrito em ${topic}`
+    );
+
     return;
   }
 
@@ -55,7 +67,7 @@ function subscribeTopic(mac) {
     subscribedTopics.add(topic);
 
     console.log(
-      `🔋 Escutando bateria: ${topic}`
+      `✅ Inscrito em ${topic}`
     );
   });
 }
@@ -67,6 +79,10 @@ CARREGAR USUÁRIOS
 */
 async function subscribeExistingUsers() {
   try {
+    console.log(
+      "📥 Carregando usuários..."
+    );
+
     const snapshot = await db
       .collection("users")
       .get();
@@ -74,13 +90,17 @@ async function subscribeExistingUsers() {
     snapshot.forEach((doc) => {
       const user = doc.data();
 
-      if (!user.mac_esp) return;
+      if (!user.mac_esp) {
+        return;
+      }
 
-      subscribeTopic(user.mac_esp);
+      subscribeTopic(
+        user.mac_esp
+      );
     });
 
     console.log(
-      "✅ Usuários carregados"
+      `✅ ${snapshot.size} usuários carregados`
     );
   } catch (err) {
     console.error(
@@ -104,10 +124,6 @@ function listenForUsers() {
     (snapshot) => {
       snapshot.docChanges().forEach(
         (change) => {
-          /*
-            added = novo usuário
-            modified = usuário atualizado
-          */
           if (
             change.type !== "added" &&
             change.type !== "modified"
@@ -122,15 +138,32 @@ function listenForUsers() {
             return;
           }
 
+          const mac =
+            user.mac_esp
+              .trim()
+              .toUpperCase();
+
+          const topic =
+            `${mac}/amie/paciente/bateria`;
+
+          /*
+            evita subscribe duplicado
+          */
+          if (
+            subscribedTopics.has(topic)
+          ) {
+            return;
+          }
+
           console.log(
             `👤 Usuário ${
               change.type === "added"
                 ? "novo"
                 : "atualizado"
-            } detectado`
+            }: ${mac}`
           );
 
-          subscribeTopic(user.mac_esp);
+          subscribeTopic(mac);
         }
       );
     },
@@ -181,7 +214,11 @@ function processMessage(
       message.toString();
 
     console.log(
-      "🔋 Raw bateria:",
+      `📨 Mensagem recebida em ${topic}`
+    );
+
+    console.log(
+      "🔋 Payload:",
       rawMessage
     );
 
@@ -190,14 +227,14 @@ function processMessage(
     );
 
     /*
-      pega MAC do tópico
       MAC/amie/paciente/bateria
     */
-    const mac = topic.split("/")[0];
+    const mac =
+      topic
+        .split("/")[0]
+        .trim()
+        .toUpperCase();
 
-    /*
-      valida tensão
-    */
     const tensao = Number(
       data.voltagem
     );
@@ -210,14 +247,13 @@ function processMessage(
       return;
     }
 
-    /*
-      calcula porcentagem
-    */
     const porcentagem =
-      calcularPorcentagem(tensao);
+      calcularPorcentagem(
+        tensao
+      );
 
     /*
-      salva apenas última %
+      salva apenas o último valor
     */
     baterias[mac] =
       porcentagem;
@@ -228,7 +264,7 @@ function processMessage(
   } catch (err) {
     console.error(
       "❌ Erro ao processar bateria:",
-      err.message
+      err
     );
   }
 }
@@ -239,9 +275,6 @@ INICIAR LISTENER
 =========================
 */
 function initBateriaListener() {
-  /*
-    evita múltiplas conexões
-  */
   if (client) {
     console.log(
       "⚠️ Listener bateria já iniciado"
@@ -250,11 +283,15 @@ function initBateriaListener() {
     return;
   }
 
+  console.log(
+    "🚀 Iniciando listener de bateria..."
+  );
+
   client = mqtt.connect(
     "mqtts://broker.hivemq.com:8883",
     {
       reconnectPeriod: 5000,
-      connectTimeout: 4000,
+      connectTimeout: 5000,
       clean: true,
       clientId:
         "amie-bateria-" +
@@ -272,14 +309,8 @@ function initBateriaListener() {
       );
 
       try {
-        /*
-          usuários já existentes
-        */
         await subscribeExistingUsers();
 
-        /*
-          listener firestore
-        */
         if (
           !usersListenerStarted
         ) {
@@ -298,6 +329,11 @@ function initBateriaListener() {
   );
 
   client.on(
+    "message",
+    processMessage
+  );
+
+  client.on(
     "reconnect",
     () => {
       console.log(
@@ -306,15 +342,10 @@ function initBateriaListener() {
     }
   );
 
-  client.on(
-    "message",
-    processMessage
-  );
-
   client.on("error", (err) => {
     console.error(
       "❌ Erro MQTT bateria:",
-      err.message
+      err
     );
   });
 }
