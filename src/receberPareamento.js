@@ -125,14 +125,9 @@ async function processPairingResponse(
           data.email
         )
         .where(
-          "mac_digitado",
+          "mac_esp",
           "==",
           data.mac
-        )
-        .where(
-          "pendencia",
-          "==",
-          true
         )
         .limit(1)
         .get();
