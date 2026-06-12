@@ -2,7 +2,7 @@ import express from "express";
 
 import enviarRoute from "./src/enviar.js";
 import { startPairingListener } from "./src/enviarPareamento.js";
-import pareamentoRoute from "./src/receberPareamento.js";
+import { processPairingResponse } from "./src/receberPareamento.js";
 
 
 import { startMQTTListener } from "./src/receber.js";
